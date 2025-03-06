@@ -7,13 +7,23 @@ from flask_cors import CORS
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import logging
 
 # Setting Up the Flask App
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)  # Enable CORS for all routes
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 # Loading the model
-model = tf.keras.models.load_model("VGG16_Model.h5")
+try:
+    model = tf.keras.models.load_model("VGG16_Model.h5")
+    logging.info("Model loaded successfully")
+except Exception as e:
+    logging.error(f"Error loading model: {e}")
+    raise
+
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 # Image Preprocessing 
@@ -33,18 +43,26 @@ def index():
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400  # Handle missing file
+        logging.error("No file uploaded")
+        return jsonify({'error': 'No file uploaded'}), 400
 
     file = request.files['file']
+    if file.filename == '':
+        logging.error("Empty file uploaded")
+        return jsonify({'error': 'Empty file uploaded'}), 400
+
     try:
+        logging.info(f"Processing file: {file.filename}")
         image = Image.open(file.stream)
         processed_image = preprocess_image(image)
         predictions = model.predict(processed_image)
         predicted_class = class_names[np.argmax(predictions[0])]  # Get the highest probability class
         probabilities = {class_names[i]: float(predictions[0][i]) for i in range(10)}  # Convert to JSON-serializable format
+        logging.info(f"Prediction successful: {predicted_class}")
         return jsonify({'predicted_class': predicted_class, 'probabilities': probabilities})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500  # Handle errors during processing
+        logging.error(f"Error during prediction: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
