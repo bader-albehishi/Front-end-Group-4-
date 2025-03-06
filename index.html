@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        .progress-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: conic-gradient(#3b82f6 0%, #3b82f6 var(--progress), #e2e8f0 var(--progress), #e2e8f0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .progress-circle::before {
+            content: attr(data-progress) "%";
+            position: absolute;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        body {
+            background: linear-gradient(135deg, #1e3a8a, #111827);
+            background-attachment: fixed;
+            font-family: 'Inter', sans-serif;
+        }
+        .sidebar {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .main-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .prediction-item {
+            padding: 1rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0.5rem;
+            transition: background 0.3s ease;
+        }
+        .prediction-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .prediction-item.predicted {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .prediction-item.predicted:hover {
+            background: rgba(16, 185, 129, 0.2);
+        }
+        .progress-circle.predicted {
+            background: conic-gradient(#10b981 0%, #10b981 var(--progress), #e2e8f0 var(--progress), #e2e8f0 100%);
+        }
+        .progress-circle.predicted::before {
+            color: #10b981;
+        }
+    </style>
+</head>
+<body class="text-white flex min-h-screen">
+    <div class="w-full">
+
+        <div class="flex">
+            <div class="sidebar w-1/4 p-6 rounded-r-lg shadow-lg">
+                <h1 class="text-2xl font-bold text-white mb-6">Predictions</h1>
+                <div id="predictions" class="space-y-4"></div>
+            </div>
+            <div class="flex-1 flex items-center justify-center p-8">
+                <div class="main-content bg-opacity-20 backdrop-blur-lg rounded-lg p-8 max-w-md w-full text-center border border-white border-opacity-20 shadow-lg">
+                    <h1 class="text-3xl font-bold text-white mb-6">Image Classifier (Group 4)</h1>
+                    <div class="relative w-full h-48 bg-gray-100 border-dashed border-2 border-gray-400 rounded-lg flex items-center justify-center overflow-hidden">
+                        <img id="imagePreview" class="hidden object-cover w-full h-full" />
+                        <span id="previewText" class="text-gray-500">Image Preview</span>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*" required class="hidden">
+                    <button type="button" onclick="document.getElementById('fileInput').click()"
+                        class="mt-4 bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        📂 Choose File
+                    </button>
+                    <span id="fileName" class="block mt-2 text-sm text-white">No file selected</span>
+                    <button id="uploadBtn" type="submit"
+                        class="mt-4 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        🚀 Upload and Classify
+                    </button>
+                    <div id="loading" class="hidden mt-4">
+                        <p class="text-white">🔄 Predicting...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("fileInput").addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            const fileName = file ? file.name : "No file selected";
+            document.getElementById("fileName").textContent = fileName;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById("imagePreview").src = e.target.result;
+                document.getElementById("imagePreview").classList.remove("hidden");
+                document.getElementById("previewText").classList.add("hidden");
+            };
+            if (file) {
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById("uploadBtn").addEventListener("click", async function() {
+            const fileInput = document.getElementById("fileInput");
+            const loadingDiv = document.getElementById("loading");
+            const predictionsDiv = document.getElementById("predictions");
+
+            if (!fileInput.files.length) {
+                alert("❌ Please select an image.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                predictionsDiv.innerHTML = "";
+                loadingDiv.classList.remove("hidden");
+
+                const response = await fetch("http://localhost:5000/predict", {
+                    method: "POST",
+                    body: formData
+                });
+
+                loadingDiv.classList.add("hidden");
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const { predicted_class, probabilities } = data;
+
+                predictionsDiv.innerHTML = `<h2 class="text-xl font-bold text-white mb-4">Predicted Class: <span class="text-green-300">${predicted_class}</span></h2>`;
+
+                for (const [className, prob] of Object.entries(probabilities)) {
+                    const percentage = (prob * 100).toFixed(2);
+                    const card = document.createElement("div");
+                    card.classList.add("prediction-item", "flex", "items-center", "space-x-4", "p-4", "rounded-lg");
+
+                    if (className === predicted_class) {
+                        card.classList.add("predicted");
+                    }
+
+                    const progressCircle = document.createElement("div");
+                    progressCircle.classList.add("progress-circle");
+                    if (className === predicted_class) {
+                        progressCircle.classList.add("predicted");
+                    }
+                    progressCircle.style.setProperty("--progress", `${percentage}%`);
+                    progressCircle.setAttribute("data-progress", percentage);
+
+                    const textDiv = document.createElement("div");
+                    textDiv.classList.add("flex-1", "text-left");
+                    textDiv.innerHTML = `<p class="font-semibold">${className}</p><p class="text-sm text-gray-400">${percentage}%</p>`;
+
+                    card.appendChild(progressCircle);
+                    card.appendChild(textDiv);
+                    predictionsDiv.appendChild(card);
+                }
+            } catch (error) {
+                loadingDiv.classList.add("hidden");
+                alert(`❌ Error: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>
