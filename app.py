@@ -5,19 +5,21 @@ import numpy as np
 from PIL import Image
 import os
 
-# إنشاء تطبيق Flask
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)  # السماح بتبادل البيانات بين السيرفر والـ frontend
+CORS(app)
 
-# تحميل النموذج
-MODEL_PATH = "VGG16_Model.h5"
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model file '{MODEL_PATH}' not found. Please check the path.")
+MODEL_PATH = os.path.join(os.getcwd(), "VGG16_Model.tflite")
 
-model = tf.keras.models.load_model(MODEL_PATH)
+# تحميل موديل TFLite
+interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
+
+# الحصول على تفاصيل الإدخال والإخراج
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
-# دالة معالجة الصورة
 def preprocess_image(image):
     if image.mode != "RGB":
         image = image.convert("RGB")  
@@ -25,12 +27,10 @@ def preprocess_image(image):
     image = np.array(image) / 255.0  
     return np.expand_dims(image, axis=0)  
 
-# صفحة HTML رئيسية
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
 
-# مسار التنبؤ
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
@@ -40,8 +40,13 @@ def predict():
     
     try:
         image = Image.open(file.stream)
-        processed_image = preprocess_image(image)
-        predictions = model.predict(processed_image)
+        processed_image = preprocess_image(image).astype(np.float32)
+
+        # تنفيذ التنبؤ باستخدام TFLite
+        interpreter.set_tensor(input_details[0]['index'], processed_image)
+        interpreter.invoke()
+        predictions = interpreter.get_tensor(output_details[0]['index'])
+
         predicted_class = class_names[np.argmax(predictions[0])]  
         probabilities = {class_names[i]: float(predictions[0][i]) for i in range(len(class_names))}  
 
@@ -50,4 +55,4 @@ def predict():
         return jsonify({'error': f"Prediction failed: {str(e)}"}), 500  
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  
+    app.run(host="0.0.0.0", port=5000, threaded=True)
