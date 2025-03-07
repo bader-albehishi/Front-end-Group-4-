@@ -1,3 +1,6 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress info and warnings
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import tensorflow as tf
