@@ -2,6 +2,8 @@
 # 🖼️ Image Classification API with TFLite and Flask
 
 This project is a simple and efficient image classification web API built using **Flask** and a **TensorFlow Lite (TFLite)** model. It allows users to upload an image and receive a predicted class label along with class probabilities based on the **CIFAR-10 dataset**.
+![Screenshot 2025-03-06 194326](https://github.com/user-attachments/assets/5862e498-c772-4c50-b5b4-b0264fc0724e)
+
 
 ## 🚀 Features
 
